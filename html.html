@@ -10,6 +10,17 @@
     p{
         text-align: justify;
     }
+    .responsive {
+        width: 100%;
+        height: 0;
+        padding-bottom: 56.25%;
+        position: relative;
+      }
+      .responsive iframe {
+          position: absolute;
+          width: 100%;
+          height: 100%;
+      }
 </style>
 <body>
 
@@ -50,16 +61,15 @@
     <br>
     <section id="showcase">
         <h1>Welcome to The HTML Tutorials</h1>
+    </section>
         <!-- <h3>Well organized and easy to understand Web building tutorials
             <span class="highlight">the Pizza&trade;</span>
         </h3> -->
 
-        <div id="showcase-image">
-            <center><iframe width="300px" height="309" src="https://www.youtube.com/embed/MP7LaV-sIao?list=PL5QrRo5TbJ-QcUEcZlZjCwj7tJS4duxM4" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></center>
+        <div class="responsive">
+            <iframe width="300px" height="309" src="https://www.youtube.com/embed/MP7LaV-sIao?list=PL5QrRo5TbJ-QcUEcZlZjCwj7tJS4duxM4" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
         </div>
         <!-- <a href="#benefits" class="btn">Read More...</a> -->
-
-    </section>
 
 <li class="testimonial-box left">
     <blockquote>
