@@ -467,14 +467,14 @@ blockquote span {
     background: #fff;
     color: #333333;
     list-style-type: none;
-    border: 1px solid #f3b57d;
+    border: 1px solid #b6120c;
     margin: 0;
     padding: 0;
     transition: 1s;
 }
 
 .price-box p {
-    font-size: 30px;
+    font-size: 20px;
     font-weight: 100;
     margin-top: 0;
 }
@@ -484,7 +484,7 @@ blockquote span {
 }
 
 .price-box .header {
-    background-color: #865d3d;
+    background-color: #134407;
     color: #fff;
     font-size: 25px;
     padding: 10px 0;
@@ -503,11 +503,11 @@ blockquote span {
 
 .price-box .emph {
     background-color: #f4f4f4;
-    font-size: 20px;
+    font-size: 16px;
 }
 
 .button {
-    background-color: #b83717;
+    background-color: #2f17b8;
     border: none;
     color: #fff;
     padding: 10px 15px;
@@ -541,7 +541,7 @@ footer {
     background-color: #f3b57d;
     padding: 20px 0;
     text-align: center;
-    font-size: 20px;
+    font-size: 25px;
 }
 
 footer p {
