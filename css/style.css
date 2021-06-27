@@ -203,7 +203,7 @@ header nav ul li {
 /* Showcase */
 
 section#showcase {
-    background-color: #f3b57d;
+    background-color: rgb(172, 28, 28);
     position: relative;
     justify-content: center;
     text-align: center;
@@ -436,7 +436,7 @@ blockquote i {
 
 blockquote span {
     display: block;
-    color: #333333;
+    color: #7c1717;
     font-style: normal;
     font-weight: bold;
     margin-top: 1em;
