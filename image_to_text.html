@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Image se Text Converter</title>
+    <title>Image/PDF to Text Converter with OCR PDF</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -66,6 +66,28 @@
             font-size: 16px;
         }
 
+        .file-type-selector {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+
+        .file-type-btn {
+            padding: 8px 15px;
+            border: 1px solid #3498db;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s;
+            white-space: nowrap;
+        }
+
+        .file-type-btn.active {
+            background-color: #3498db;
+            color: white;
+        }
+
         .preview-area {
             display: flex;
             gap: 20px;
@@ -89,7 +111,7 @@
             margin-top: 10px;
         }
 
-        #noImageText {
+        #noFileText {
             color: #7f8c8d;
             font-style: italic;
         }
@@ -107,6 +129,12 @@
             border-radius: 4px;
             resize: none;
             font-family: inherit;
+            min-height: 200px;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 10px;
         }
 
         button {
@@ -118,6 +146,7 @@
             cursor: pointer;
             font-size: 16px;
             transition: background-color 0.3s;
+            flex: 1;
         }
 
         button:hover {
@@ -127,6 +156,14 @@
         button:disabled {
             background-color: #95a5a6;
             cursor: not-allowed;
+        }
+
+        button.secondary {
+            background-color: #2ecc71;
+        }
+
+        button.secondary:hover {
+            background-color: #27ae60;
         }
 
         .status {
@@ -140,67 +177,167 @@
             .preview-area {
                 flex-direction: column;
             }
+            
+            .action-buttons {
+                flex-direction: column;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Image se Text Converter</h1>
-        <p>Apni JPG/PNG image upload karein aur usme likha text extract karein</p>
+        <h1>Image/PDF to Text Converter with OCR PDF</h1>
+        <p>Upload JPG/PNG images or PDF files and extract text or create editable PDFs</p>
+        
+        <div class="file-type-selector">
+            <div class="file-type-btn active" id="imageBtn">Image (JPG/PNG)</div>
+            <div class="file-type-btn" id="pdfBtn">PDF</div>
+            <div class="file-type-btn" id="ocrPdfBtn">OCR PDF</div>
+        </div>
         
         <div class="upload-area" id="dropArea">
             <input type="file" id="fileInput" accept="image/jpeg, image/png">
             <label for="fileInput" class="upload-btn">
-                <span>Image Select Karein</span>
-                <span>Ya Image Yahan Drop Karein</span>
+                <span>Select File</span>
+                <span>or Drop File Here</span>
             </label>
         </div>
         
         <div class="preview-area">
             <div class="image-preview">
-                <h3>Selected Image</h3>
-                <img id="imagePreview" src="#" alt="Image Preview" style="display: none;">
-                <p id="noImageText">Koi image select nahi hui</p>
+                <h3 id="previewTitle">Selected File</h3>
+                <img id="imagePreview" src="#" alt="File Preview" style="display: none;">
+                <embed id="pdfPreview" type="application/pdf" width="100%" height="300px" style="display: none;">
+                <p id="noFileText">No file selected</p>
             </div>
             
             <div class="text-result">
                 <h3>Extracted Text</h3>
-                <textarea id="extractedText" placeholder="Yahan extracted text dikhega..." readonly></textarea>
-                <button id="copyBtn" disabled>Text Copy Karein</button>
+                <textarea id="extractedText" placeholder="Extracted text will appear here..." readonly></textarea>
+                <div class="action-buttons">
+                    <button id="copyBtn" disabled>Copy Text</button>
+                    <button id="downloadPdfBtn" class="secondary" disabled>Download as PDF</button>
+                </div>
             </div>
         </div>
         
         <div class="status" id="status"></div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+    <!-- PDF.js library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
     <script>
+        // Set worker path for PDF.js
+        pdfjsLib = window['pdfjs-dist/build/pdf'];
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+    </script>
+    
+    <!-- Tesseract.js library -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+    
+    <!-- jsPDF for PDF generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    
+    <script>
+        // Wait for all libraries to load
         document.addEventListener('DOMContentLoaded', function() {
+            const { jsPDF } = window.jspdf;
             const fileInput = document.getElementById('fileInput');
             const dropArea = document.getElementById('dropArea');
             const imagePreview = document.getElementById('imagePreview');
-            const noImageText = document.getElementById('noImageText');
+            const pdfPreview = document.getElementById('pdfPreview');
+            const noFileText = document.getElementById('noFileText');
             const extractedText = document.getElementById('extractedText');
             const copyBtn = document.getElementById('copyBtn');
+            const downloadPdfBtn = document.getElementById('downloadPdfBtn');
             const status = document.getElementById('status');
+            const imageBtn = document.getElementById('imageBtn');
+            const pdfBtn = document.getElementById('pdfBtn');
+            const ocrPdfBtn = document.getElementById('ocrPdfBtn');
+            const previewTitle = document.getElementById('previewTitle');
             
-            // Drag and drop functionality
-            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-                dropArea.addEventListener(eventName, preventDefaults, false);
-            });
+            let currentMode = 'image'; // 'image', 'pdf', or 'ocrPdf'
+            let extractedTextContent = '';
+            
+            // Initialize all event listeners
+            function initializeApp() {
+                // Set up mode switching
+                imageBtn.addEventListener('click', function() {
+                    currentMode = 'image';
+                    updateActiveButton();
+                    fileInput.setAttribute('accept', 'image/jpeg, image/png');
+                    resetUI();
+                });
+                
+                pdfBtn.addEventListener('click', function() {
+                    currentMode = 'pdf';
+                    updateActiveButton();
+                    fileInput.setAttribute('accept', 'application/pdf');
+                    resetUI();
+                });
+                
+                ocrPdfBtn.addEventListener('click', function() {
+                    currentMode = 'ocrPdf';
+                    updateActiveButton();
+                    fileInput.setAttribute('accept', 'image/jpeg, image/png, application/pdf');
+                    resetUI();
+                });
+                
+                // Drag and drop functionality
+                ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                    dropArea.addEventListener(eventName, preventDefaults, false);
+                });
+                
+                ['dragenter', 'dragover'].forEach(eventName => {
+                    dropArea.addEventListener(eventName, highlight, false);
+                });
+                
+                ['dragleave', 'drop'].forEach(eventName => {
+                    dropArea.addEventListener(eventName, unhighlight, false);
+                });
+                
+                dropArea.addEventListener('drop', handleDrop, false);
+                
+                fileInput.addEventListener('change', function() {
+                    if (this.files.length) {
+                        handleFiles(this.files);
+                    }
+                });
+                
+                copyBtn.addEventListener('click', copyTextToClipboard);
+                downloadPdfBtn.addEventListener('click', downloadAsPDF);
+            }
+            
+            function updateActiveButton() {
+                [imageBtn, pdfBtn, ocrPdfBtn].forEach(btn => btn.classList.remove('active'));
+                if (currentMode === 'image') imageBtn.classList.add('active');
+                if (currentMode === 'pdf') pdfBtn.classList.add('active');
+                if (currentMode === 'ocrPdf') ocrPdfBtn.classList.add('active');
+                
+                if (currentMode === 'image') {
+                    previewTitle.textContent = 'Selected Image';
+                } else if (currentMode === 'pdf') {
+                    previewTitle.textContent = 'Selected PDF';
+                } else {
+                    previewTitle.textContent = 'Selected File (OCR)';
+                }
+            }
+            
+            function resetUI() {
+                imagePreview.style.display = 'none';
+                pdfPreview.style.display = 'none';
+                noFileText.style.display = 'block';
+                extractedText.value = '';
+                extractedTextContent = '';
+                copyBtn.disabled = true;
+                downloadPdfBtn.disabled = true;
+                showStatus('Ready to process files', 'info');
+            }
             
             function preventDefaults(e) {
                 e.preventDefault();
                 e.stopPropagation();
             }
-            
-            ['dragenter', 'dragover'].forEach(eventName => {
-                dropArea.addEventListener(eventName, highlight, false);
-            });
-            
-            ['dragleave', 'drop'].forEach(eventName => {
-                dropArea.addEventListener(eventName, unhighlight, false);
-            });
             
             function highlight() {
                 dropArea.classList.add('highlight');
@@ -210,8 +347,6 @@
                 dropArea.classList.remove('highlight');
             }
             
-            dropArea.addEventListener('drop', handleDrop, false);
-            
             function handleDrop(e) {
                 const dt = e.dataTransfer;
                 const files = dt.files;
@@ -220,38 +355,75 @@
                 }
             }
             
-            fileInput.addEventListener('change', function() {
-                if (this.files.length) {
-                    handleFiles(this.files);
-                }
-            });
-            
             function handleFiles(files) {
                 const file = files[0];
-                if (file.type.match('image.*')) {
-                    const reader = new FileReader();
-                    
-                    reader.onload = function(e) {
-                        imagePreview.src = e.target.result;
-                        imagePreview.style.display = 'block';
-                        noImageText.style.display = 'none';
-                        
-                        // Extract text from image
-                        extractTextFromImage(e.target.result);
-                    };
-                    
-                    reader.readAsDataURL(file);
-                } else {
-                    showStatus('Sirf JPG/PNG images allow hain', 'error');
+                resetUI();
+                
+                // Validate file type based on mode
+                if (currentMode === 'image' && !file.type.match('image.*')) {
+                    showStatus('Only JPG/PNG images are allowed', 'error');
+                    return;
                 }
+                
+                if (currentMode === 'pdf' && file.type !== 'application/pdf') {
+                    showStatus('Only PDF files are allowed', 'error');
+                    return;
+                }
+                
+                if (currentMode === 'ocrPdf' && !(file.type.match('image.*') || file.type === 'application/pdf')) {
+                    showStatus('Only JPG/PNG images or PDF files are allowed', 'error');
+                    return;
+                }
+                
+                const reader = new FileReader();
+                
+                reader.onload = function(e) {
+                    if (currentMode === 'image') {
+                        showImagePreview(e.target.result);
+                        extractTextFromImage(e.target.result);
+                    } 
+                    else if (currentMode === 'pdf') {
+                        showPdfPreview(e.target.result);
+                        extractTextFromPDF(e.target.result);
+                    }
+                    else if (currentMode === 'ocrPdf') {
+                        if (file.type.match('image.*')) {
+                            showImagePreview(e.target.result);
+                            extractTextForOcrPdf(e.target.result, 'image');
+                        } else {
+                            showPdfPreview(e.target.result);
+                            extractTextForOcrPdf(e.target.result, 'pdf');
+                        }
+                    }
+                };
+                
+                reader.onerror = function() {
+                    showStatus('Error reading file', 'error');
+                };
+                
+                reader.readAsDataURL(file);
+            }
+            
+            function showImagePreview(imageSrc) {
+                imagePreview.src = imageSrc;
+                imagePreview.style.display = 'block';
+                pdfPreview.style.display = 'none';
+                noFileText.style.display = 'none';
+            }
+            
+            function showPdfPreview(pdfSrc) {
+                pdfPreview.src = pdfSrc + '#toolbar=0&navpanes=0';
+                pdfPreview.style.display = 'block';
+                imagePreview.style.display = 'none';
+                noFileText.style.display = 'none';
             }
             
             function extractTextFromImage(imageSrc) {
-                showStatus('Image se text extract kiya ja raha hai...', 'processing');
+                showStatus('Extracting text from image...', 'processing');
                 
                 Tesseract.recognize(
                     imageSrc,
-                    'eng+hin', // English aur Hindi dono languages support
+                    'eng+hin',
                     {
                         logger: m => {
                             if (m.status === 'recognizing text') {
@@ -261,19 +433,130 @@
                     }
                 ).then(({ data: { text } }) => {
                     extractedText.value = text;
-                    copyBtn.disabled = false;
-                    showStatus('Text successfully extract ho gaya!', 'success');
+                    extractedTextContent = text;
+                    enableActionButtons();
+                    showStatus('Text extracted successfully!', 'success');
                 }).catch(err => {
-                    console.error(err);
-                    showStatus('Text extract karne mein error aaya', 'error');
+                    console.error('OCR Error:', err);
+                    showStatus('Error extracting text', 'error');
                 });
             }
             
-            copyBtn.addEventListener('click', function() {
+            async function extractTextFromPDF(pdfData) {
+                showStatus('Extracting text from PDF...', 'processing');
+                
+                try {
+                    const pdfDataArray = new Uint8Array(atob(pdfData.split(',')[1]).split('').map(c => c.charCodeAt(0)));
+                    const loadingTask = pdfjsLib.getDocument({data: pdfDataArray});
+                    const pdf = await loadingTask.promise;
+                    
+                    let fullText = '';
+                    const totalPages = pdf.numPages;
+                    
+                    for (let i = 1; i <= totalPages; i++) {
+                        try {
+                            status.innerHTML = `Processing page ${i} of ${totalPages}...`;
+                            const page = await pdf.getPage(i);
+                            const textContent = await page.getTextContent();
+                            const textItems = textContent.items.map(item => item.str);
+                            fullText += textItems.join(' ') + '\n\n';
+                        } catch (pageErr) {
+                            console.error(`Error processing page ${i}:`, pageErr);
+                            fullText += `\n[Error processing page ${i}]\n\n`;
+                        }
+                    }
+                    
+                    extractedText.value = fullText;
+                    extractedTextContent = fullText;
+                    enableActionButtons();
+                    showStatus('PDF text extracted successfully!', 'success');
+                } catch (err) {
+                    console.error('PDF Processing Error:', err);
+                    showStatus('Error extracting text from PDF', 'error');
+                    extractedText.value = 'Error: Could not extract text. Is the PDF password protected?';
+                }
+            }
+            
+            async function extractTextForOcrPdf(fileData, fileType) {
+                showStatus('Processing file for OCR PDF...', 'processing');
+                
+                try {
+                    let text = '';
+                    
+                    if (fileType === 'image') {
+                        const result = await Tesseract.recognize(
+                            fileData,
+                            'eng+hin',
+                            {
+                                logger: m => {
+                                    if (m.status === 'recognizing text') {
+                                        status.innerHTML = `Progress: ${Math.round(m.progress * 100)}%`;
+                                    }
+                                }
+                            }
+                        );
+                        text = result.data.text;
+                    } else {
+                        const pdfDataArray = new Uint8Array(atob(fileData.split(',')[1]).split('').map(c => c.charCodeAt(0)));
+                        const loadingTask = pdfjsLib.getDocument({data: pdfDataArray});
+                        const pdf = await loadingTask.promise;
+                        
+                        const totalPages = pdf.numPages;
+                        for (let i = 1; i <= totalPages; i++) {
+                            status.innerHTML = `Processing page ${i} of ${totalPages}...`;
+                            const page = await pdf.getPage(i);
+                            const textContent = await page.getTextContent();
+                            const textItems = textContent.items.map(item => item.str);
+                            text += textItems.join(' ') + '\n\n';
+                        }
+                    }
+                    
+                    extractedText.value = text;
+                    extractedTextContent = text;
+                    enableActionButtons();
+                    showStatus('File processed for OCR PDF! Click "Download as PDF"', 'success');
+                } catch (err) {
+                    console.error('OCR PDF Error:', err);
+                    showStatus('Error processing file for OCR PDF', 'error');
+                }
+            }
+            
+            function enableActionButtons() {
+                copyBtn.disabled = false;
+                downloadPdfBtn.disabled = false;
+            }
+            
+            function copyTextToClipboard() {
                 extractedText.select();
                 document.execCommand('copy');
-                showStatus('Text copy ho gaya clipboard mein!', 'success');
-            });
+                showStatus('Text copied to clipboard!', 'success');
+                
+                const originalText = this.textContent;
+                this.textContent = 'Copied!';
+                setTimeout(() => {
+                    this.textContent = originalText;
+                }, 2000);
+            }
+            
+            function downloadAsPDF() {
+                if (!extractedTextContent) {
+                    showStatus('No text available to create PDF', 'error');
+                    return;
+                }
+                
+                showStatus('Creating PDF...', 'processing');
+                
+                try {
+                    const doc = new jsPDF();
+                    const lines = doc.splitTextToSize(extractedTextContent, 180);
+                    doc.text(lines, 10, 10);
+                    doc.save('extracted-text.pdf');
+                    showStatus('PDF downloaded successfully!', 'success');
+                } catch (err) {
+                    console.error('PDF Creation Error:', err);
+                    showStatus('Error creating PDF', 'error');
+                }
+            }
             
             function showStatus(message, type) {
                 status.textContent = message;
@@ -282,6 +565,10 @@
                 status.style.color = type === 'error' ? '#c62828' : 
                                     type === 'success' ? '#2e7d32' : '#1565c0';
             }
+            
+            // Initialize the application
+            initializeApp();
+            resetUI();
         });
     </script>
 </body>
