@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF to Word Converter</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.12.313/pdf.min.js"></script>
+    <style>
+        :root {
+            --primary: #4361ee;
+            --secondary: #3f37c9;
+            --accent: #4895ef;
+            --light: #f8f9fa;
+            --dark: #212529;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 600px;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        h1 {
+            color: var(--primary);
+            margin-bottom: 15px;
+            font-size: 28px;
+        }
+        
+        .description {
+            color: var(--dark);
+            margin-bottom: 25px;
+            opacity: 0.8;
+            line-height: 1.5;
+        }
+        
+        .upload-area {
+            border: 2px dashed var(--accent);
+            border-radius: 10px;
+            padding: 30px;
+            margin-bottom: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            background: rgba(72, 149, 239, 0.05);
+        }
+        
+        .upload-area:hover {
+            background: rgba(72, 149, 239, 0.1);
+            border-color: var(--primary);
+        }
+        
+        .upload-area i {
+            font-size: 50px;
+            color: var(--accent);
+            margin-bottom: 15px;
+            display: block;
+        }
+        
+        .upload-area p {
+            margin-bottom: 5px;
+            color: var(--dark);
+        }
+        
+        .upload-area .browse {
+            color: var(--primary);
+            font-weight: 600;
+        }
+        
+        #fileInput {
+            display: none;
+        }
+        
+        #fileName {
+            margin-top: 10px;
+            font-size: 14px;
+            color: var(--dark);
+            opacity: 0.7;
+        }
+        
+        .btn {
+            background: linear-gradient(to right, var(--primary), var(--secondary));
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 50px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(67, 97, 238, 0.3);
+            margin: 10px 0;
+            display: inline-block;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(67, 97, 238, 0.4);
+        }
+        
+        .btn:disabled {
+            background: #cccccc;
+            transform: none;
+            box-shadow: none;
+            cursor: not-allowed;
+        }
+        
+        .progress-container {
+            width: 100%;
+            background-color: #e9ecef;
+            border-radius: 10px;
+            margin: 20px 0;
+            display: none;
+        }
+        
+        .progress-bar {
+            height: 10px;
+            border-radius: 10px;
+            background: linear-gradient(to right, var(--accent), var(--primary));
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        
+        .status {
+            margin: 15px 0;
+            font-weight: 500;
+            min-height: 24px;
+        }
+        
+        .download-btn {
+            display: none;
+            background: linear-gradient(to right, #4cc9f0, #4895ef);
+        }
+        
+        .drag-over {
+            background: rgba(72, 149, 239, 0.2) !important;
+            border-color: var(--secondary) !important;
+        }
+        
+        @media (max-width: 500px) {
+            .container {
+                padding: 20px;
+            }
+            
+            h1 {
+                font-size: 24px;
+            }
+            
+            .upload-area {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>PDF to Word Converter</h1>
+        <p class="description">Upload your PDF file and convert it to editable Word document format</p>
+        
+        <div class="upload-area" id="dropArea">
+            <i>📄</i>
+            <p>Drag & drop your PDF file here or</p>
+            <p class="browse">Browse files</p>
+            <div id="fileName">No file selected</div>
+            <input type="file" id="fileInput" accept=".pdf">
+        </div>
+        
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-bar" id="progressBar"></div>
+        </div>
+        
+        <div class="status" id="status"></div>
+        
+        <button class="btn" id="convertBtn" disabled>Word में Convert करें</button>
+        <button class="btn download-btn" id="downloadBtn">Word File Download करें</button>
+    </div>
+
+    <script>
+        // Initialize PDF.js worker
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.12.313/pdf.worker.min.js';
+        
+        const dropArea = document.getElementById('dropArea');
+        const fileInput = document.getElementById('fileInput');
+        const fileName = document.getElementById('fileName');
+        const convertBtn = document.getElementById('convertBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const statusEl = document.getElementById('status');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressBar = document.getElementById('progressBar');
+        
+        let pdfFile = null;
+        
+        // Handle click on upload area
+        dropArea.addEventListener('click', () => {
+            fileInput.click();
+        });
+        
+        // Handle file selection
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) {
+                pdfFile = e.target.files[0];
+                handleFileSelection(pdfFile);
+            }
+        });
+        
+        // Handle drag over
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, preventDefaults, false);
+        });
+        
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        
+        // Highlight drop area when item is dragged over it
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropArea.addEventListener(eventName, highlight, false);
+        });
+        
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, unhighlight, false);
+        });
+        
+        function highlight() {
+            dropArea.classList.add('drag-over');
+        }
+        
+        function unhighlight() {
+            dropArea.classList.remove('drag-over');
+        }
+        
+        // Handle dropped files
+        dropArea.addEventListener('drop', (e) => {
+            const dt = e.dataTransfer;
+            if (dt.files.length) {
+                pdfFile = dt.files[0];
+                handleFileSelection(pdfFile);
+            }
+        });
+        
+        function handleFileSelection(file) {
+            // Check if file is PDF
+            if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
+                fileName.textContent = file.name;
+                convertBtn.disabled = false;
+                statusEl.textContent = '';
+                downloadBtn.style.display = 'none';
+            } else {
+                fileName.textContent = 'Please select a PDF file';
+                convertBtn.disabled = true;
+                statusEl.textContent = 'Invalid file type. Please upload a PDF file.';
+                statusEl.style.color = 'red';
+            }
+        }
+        
+        // Convert PDF to Word (RTF format)
+        convertBtn.addEventListener('click', async () => {
+            if (!pdfFile) return;
+            
+            convertBtn.disabled = true;
+            statusEl.textContent = 'Processing PDF...';
+            statusEl.style.color = 'var(--dark)';
+            progressContainer.style.display = 'block';
+            
+            try {
+                const arrayBuffer = await readFileAsArrayBuffer(pdfFile);
+                const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+                
+                let fullText = '';
+                const totalPages = pdf.numPages;
+                
+                // Extract text from each page
+                for (let i = 1; i <= totalPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const textContent = await page.getTextContent();
+                    const pageText = textContent.items.map(item => item.str).join(' ');
+                    fullText += pageText + '\n\n';
+                    
+                    // Update progress
+                    const progress = Math.round((i / totalPages) * 100);
+                    progressBar.style.width = `${progress}%`;
+                    statusEl.textContent = `Processing page ${i} of ${totalPages}...`;
+                }
+                
+                // Convert to RTF format
+                statusEl.textContent = 'Creating Word document...';
+                const rtfContent = convertToRTF(fullText);
+                
+                // Create download link
+                const blob = new Blob([rtfContent], { type: 'application/rtf' });
+                const url = URL.createObjectURL(blob);
+                
+                downloadBtn.onclick = () => {
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = pdfFile.name.replace('.pdf', '') + '.rtf';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                };
+                
+                statusEl.textContent = 'Conversion complete!';
+                statusEl.style.color = 'green';
+                downloadBtn.style.display = 'inline-block';
+                
+            } catch (error) {
+                console.error('Conversion error:', error);
+                statusEl.textContent = 'Error: ' + error.message;
+                statusEl.style.color = 'red';
+            } finally {
+                convertBtn.disabled = false;
+            }
+        });
+        
+        // Helper function to read file as ArrayBuffer
+        function readFileAsArrayBuffer(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsArrayBuffer(file);
+            });
+        }
+        
+        // Convert plain text to RTF format
+        function convertToRTF(text) {
+            // RTF header
+            let rtf = '{\\rtf1\\ansi\\ansicpg1252\\deff0\\nouicompat\\deflang1033{\\fonttbl{\\f0\\fnil\\fcharset0 Calibri;}}\n';
+            rtf += '{\\*\\generator PDFtoWordConverter}\\viewkind4\\uc1\n';
+            rtf += '\\f0\\fs24\\par\n';
+            
+            // Escape special characters and add text
+            text = text
+                .replace(/\\/g, '\\\\')
+                .replace(/\{/g, '\\{')
+                .replace(/\}/g, '\\}')
+                .replace(/\n/g, '\\par\n');
+            
+            rtf += text;
+            rtf += '}';
+            
+            return rtf;
+        }
+    </script>
+</body>
+</html>
